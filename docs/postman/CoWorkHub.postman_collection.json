@@ -1,0 +1,77 @@
+{
+  "info": {
+    "name": "CoWorkHub - API en español",
+    "description": "Solicitudes de ejemplo para probar el login, los catálogos, las reservas y los miembros. La cobertura de los 14 escenarios está en src/test/java/com/coworkhub/aceptacion/EscenariosAceptacionTest.java.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:8080" },
+    { "key": "token", "value": "" },
+    { "key": "fechaDisponibilidad", "value": "" },
+    { "key": "fechaReserva", "value": "" }
+  ],
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "function fechaEnDias(dias) {",
+          "  const fecha = new Date();",
+          "  fecha.setDate(fecha.getDate() + dias);",
+          "  const anio = fecha.getFullYear();",
+          "  const mes = String(fecha.getMonth() + 1).padStart(2, '0');",
+          "  const dia = String(fecha.getDate()).padStart(2, '0');",
+          "  return anio + '-' + mes + '-' + dia;",
+          "}",
+          "pm.collectionVariables.set('fechaDisponibilidad', fechaEnDias(2));",
+          "pm.collectionVariables.set('fechaReserva', fechaEnDias(10));"
+        ]
+      }
+    }
+  ],
+  "item": [
+    {
+      "name": "01 - Sesión",
+      "item": [
+        {
+          "name": "Iniciar sesión como administrador",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"nombreUsuario\": \"admin\",\n  \"contrasena\": \"coworkhub123\"\n}", "options": { "raw": { "language": "json" } } },
+            "url": "{{baseUrl}}/auth/login"
+          },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('El inicio de sesión responde 200', function () { pm.response.to.have.status(200); });", "const datos = pm.response.json();", "pm.collectionVariables.set('token', datos.token);", "pm.test('La respuesta incluye el token', function () { pm.expect(datos.token).to.be.a('string').and.not.empty; });"] } }]
+        },
+        {
+          "name": "Consultar mi perfil",
+          "request": { "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }] }, "method": "GET", "url": "{{baseUrl}}/auth/perfil" },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('El perfil responde 200', function () { pm.response.to.have.status(200); });"] } }]
+        }
+      ]
+    },
+    {
+      "name": "02 - Consultas",
+      "item": [
+        { "name": "Estado del servicio", "request": { "method": "GET", "url": "{{baseUrl}}/actuator/health" }, "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('El servicio está activo', function () { pm.response.to.have.status(200); });"] } }] },
+        { "name": "Listar sedes", "request": { "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }] }, "method": "GET", "url": "{{baseUrl}}/api/sedes" } },
+        { "name": "Listar salas", "request": { "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }] }, "method": "GET", "url": "{{baseUrl}}/api/salas" } },
+        { "name": "Consultar disponibilidad", "request": { "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }] }, "method": "GET", "url": "{{baseUrl}}/api/disponibilidad?sedeId=1&fecha={{fechaDisponibilidad}}&horaInicio=10:00&horaFin=11:00&capacidadMinima=2" } },
+        { "name": "Ver miembros suspendidos", "request": { "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }] }, "method": "GET", "url": "{{baseUrl}}/api/miembros?estado=SUSPENDED&page=0&size=20" } },
+        { "name": "Listar reservas pendientes", "request": { "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }] }, "method": "GET", "url": "{{baseUrl}}/api/reservas?estado=PENDING" } }
+      ]
+    },
+    {
+      "name": "03 - Crear reserva de ejemplo",
+      "request": {
+        "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }] },
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": { "mode": "raw", "raw": "{\n  \"miembroId\": 1,\n  \"salaId\": 1,\n  \"inicio\": \"{{fechaReserva}}T10:00:00\",\n  \"fin\": \"{{fechaReserva}}T11:00:00\",\n  \"asistentes\": 2,\n  \"servicios\": [{ \"servicioId\": 1, \"cantidad\": 1 }]\n}", "options": { "raw": { "language": "json" } } },
+        "url": "{{baseUrl}}/api/reservas"
+      },
+      "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('La reserva se creó', function () { pm.response.to.have.status(201); });"] } }]
+    }
+  ]
+}

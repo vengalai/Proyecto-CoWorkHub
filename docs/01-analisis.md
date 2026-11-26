@@ -4,6 +4,10 @@ Documento de análisis del proyecto final. Complementa el enunciado e incorpora 
 requisito adicional acordado: **interfaz web con JavaScript** además de la API REST.
 Los 14 escenarios de aceptación del enunciado se mantienen sin cambios.
 
+El **código se escribe en español** (clases, atributos, métodos y variables); las
+**tablas y columnas conservan nombres en inglés** mediante `@Table` y `@Column`, para no
+alterar el modelo de datos ni el seed.
+
 ---
 
 ## 1. Actores y casos de uso
@@ -20,7 +24,7 @@ Los 14 escenarios de aceptación del enunciado se mantienen sin cambios.
 1. **Autenticarse** (`POST /auth/login`): valida credenciales BCrypt y devuelve un JWT de 60 minutos.
 2. **Consultar perfil** (`GET /auth/perfil`): usuario, rol y `miembroId` del token.
 3. **Gestionar catálogos**: CRUD de sedes, salas (con equipamiento), equipamiento, servicios adicionales y planes. Escritura solo `ADMIN`.
-4. **Gestionar miembros**: alta transaccional de `Member` + `UserAccount`, listado con filtros, actualización, suspensión/reactivación y baja.
+4. **Gestionar miembros**: alta transaccional de `Miembro` + `CuentaUsuario`, listado con filtros, actualización, suspensión/reactivación y baja.
 5. **Consultar disponibilidad**: salas libres de una sede para fecha y rango horario, con filtros de capacidad y equipamiento.
 6. **Reservar**: alta de reserva con servicios; el sistema valida RN-01 a RN-07 y devuelve el costo calculado.
 7. **Consultar reservas**: por id, por miembro, por sala y fecha, o por estado.
@@ -35,10 +39,15 @@ Los 14 escenarios de aceptación del enunciado se mantienen sin cambios.
 
 | Término | Definición |
 |---|---|
+| **Sede** | Ubicación física del coworking: ciudad, dirección y horario de apertura y cierre. Agrupa las salas reservables. |
+| **Sala** | Espacio reservable de una sede, con tipo, capacidad, tarifa por hora y equipamiento. |
+| **Equipamiento** | Recurso compartido (proyector, pizarra, monitor…) que puede asignarse a varias salas. |
+| **Servicio adicional** | Prestación opcional que se cobra por cantidad en una reserva (catering, café…). Su precio se congela al reservar. |
+| **Cuenta de usuario** | Credenciales de acceso (nombre de usuario, contraseña BCrypt y rol) asociadas a un miembro. |
 | **Reserva** | Bloque de uso de una sala por un miembro, con fecha, hora de inicio y fin, asistentes, servicios adicionales y estado (`PENDING`, `CONFIRMED`, `COMPLETED`, `CANCELLED`). |
 | **Plan** | Membresía contratada por un miembro. Define las horas incluidas por mes, el descuento sobre horas excedentes y el máximo de reservas activas simultáneas. |
 | **Horas incluidas** | Horas que el plan cubre sin costo adicional en el mes calendario. Se consumen con las reservas del miembro y no generan cargo mientras haya saldo. |
-| **Horas excedentes** | Horas reservadas por encima de las incluidas en el mes. Se cobran a `hourlyRate × (1 − overageDiscount/100)` de la sala reservada. |
+| **Horas excedentes** | Horas reservadas por encima de las incluidas en el mes. Se cobran a `tarifaHora × (1 − descuentoExcedente/100)` de la sala reservada. |
 | **Solapamiento** | Cruce temporal entre dos reservas `PENDING` o `CONFIRMED` de la misma sala. Dos intervalos que solo se tocan en un extremo (una termina cuando la otra empieza) **no** se solapan. |
 | **Cargo por cancelación** | Importe que se cobra al cancelar según la anticipación: `0` con 24 h o más, `50 %` del costo de la sala entre 24 h y 2 h, y cancelación rechazada con menos de 2 h o si la reserva ya comenzó. |
 
@@ -46,111 +55,146 @@ Los 14 escenarios de aceptación del enunciado se mantienen sin cambios.
 
 ## 3. Modelo entidad-relación
 
+### 3.1 Convención de nombres
+
+| Elemento | Idioma | Ejemplo |
+|---|---|---|
+| Clases, atributos, métodos y variables | Español | `Sala.tarifaHora`, `Reserva.calcularCosto()` |
+| Tablas y columnas | Inglés, fijadas con `@Table` / `@Column` | `rooms.hourly_rate` |
+| Valores de enum, rutas y códigos | Los del enunciado | `EstadoReserva.PENDING`, `/api/reservas`, `RN-01` |
+| Mensajes de error y documentación | Español | `"La sala ya está reservada en ese horario"` |
+
+El enunciado §2 pedía atributos en inglés; se prioriza la rúbrica §4 por decisión del
+proyecto. La base conserva nombres en inglés para no modificar el modelo de datos ni el
+seed, y la correspondencia queda explícita en la tabla 3.3.
+
+### 3.2 Diagrama
+
 ```mermaid
 erDiagram
-    LOCATIONS ||--o{ ROOMS : contiene
-    ROOMS }o--o{ EQUIPMENT : equipada_con
-    MEMBERSHIP_PLANS ||--o{ MEMBERS : suscribe
-    MEMBERS |o--o| USER_ACCOUNTS : inicia_sesion_con
-    MEMBERS ||--o{ BOOKINGS : realiza
-    ROOMS ||--o{ BOOKINGS : reservada_en
-    BOOKINGS ||--o{ BOOKING_ITEMS : contiene
-    ADDITIONAL_SERVICES ||--o{ BOOKING_ITEMS : cobrado_en
+    SEDE ||--o{ SALA : contiene
+    SALA }o--o{ EQUIPAMIENTO : equipada_con
+    PLAN_MEMBRESIA ||--o{ MIEMBRO : suscribe
+    MIEMBRO |o--o| CUENTA_USUARIO : inicia_sesion_con
+    MIEMBRO ||--o{ RESERVA : realiza
+    SALA ||--o{ RESERVA : reservada_en
+    RESERVA ||--o{ DETALLE_RESERVA : contiene
+    SERVICIO_ADICIONAL ||--o{ DETALLE_RESERVA : cobrado_en
 
-    LOCATIONS {
+    SEDE {
         bigint id PK
-        varchar name
-        varchar city
-        varchar address
-        time opening_time
-        time closing_time
+        varchar nombre
+        varchar ciudad
+        varchar direccion
+        time horaApertura
+        time horaCierre
     }
-    ROOMS {
+    SALA {
         bigint id PK
-        bigint location_id FK
-        varchar name
-        varchar type
-        int capacity
-        decimal hourly_rate
-        boolean active
+        bigint sede_id FK
+        varchar nombre
+        varchar tipo
+        int capacidad
+        decimal tarifaHora
+        boolean activa
     }
-    EQUIPMENT {
+    EQUIPAMIENTO {
         bigint id PK
-        varchar name
+        varchar nombre
     }
-    ROOM_EQUIPMENT {
-        bigint room_id FK
-        bigint equipment_id FK
+    SALA_EQUIPAMIENTO {
+        bigint sala_id FK
+        bigint equipamiento_id FK
     }
-    MEMBERSHIP_PLANS {
+    PLAN_MEMBRESIA {
         bigint id PK
-        varchar name
-        int included_hours_per_month
-        int overage_discount
-        int max_active_bookings
+        varchar nombre
+        int horasIncluidasMes
+        int descuentoExcedente
+        int maxReservasActivas
     }
-    MEMBERS {
+    MIEMBRO {
         bigint id PK
         bigint plan_id FK
-        varchar document_number
-        varchar full_name
+        varchar numeroDocumento
+        varchar nombreCompleto
         varchar email
-        varchar status
+        varchar estado
     }
-    USER_ACCOUNTS {
+    CUENTA_USUARIO {
         bigint id PK
-        bigint member_id FK
-        varchar username
-        varchar password
-        varchar role
+        bigint miembro_id FK
+        varchar nombreUsuario
+        varchar contrasena
+        varchar rol
     }
-    BOOKINGS {
+    RESERVA {
         bigint id PK
-        bigint room_id FK
-        bigint member_id FK
-        datetime start_time
-        datetime end_time
-        int attendees
-        varchar status
-        decimal room_cost
-        decimal services_cost
-        decimal total_cost
-        decimal cancellation_fee
+        bigint sala_id FK
+        bigint miembro_id FK
+        datetime inicio
+        datetime fin
+        int asistentes
+        varchar estado
+        decimal costoSala
+        decimal costoServicios
+        decimal costoTotal
+        decimal cargoCancelacion
     }
-    ADDITIONAL_SERVICES {
+    SERVICIO_ADICIONAL {
         bigint id PK
-        varchar name
-        decimal unit_price
+        varchar nombre
+        decimal precioUnitario
     }
-    BOOKING_ITEMS {
+    DETALLE_RESERVA {
         bigint id PK
-        bigint booking_id FK
-        bigint service_id FK
-        int quantity
-        decimal applied_unit_price
+        bigint reserva_id FK
+        bigint servicio_id FK
+        int cantidad
+        decimal precioUnitarioAplicado
     }
 ```
 
-### Decisiones de mapeo JPA
+### 3.3 Correspondencia clase ↔ tabla
+
+| Clase Java | Tabla | Notas |
+|---|---|---|
+| `Sede` | `locations` | Catálogo raíz; agrupa salas. |
+| `Sala` | `rooms` | FK `location_id`; N:N con equipamiento. |
+| `Equipamiento` | `equipment` | Catálogo compartido entre salas. |
+| — | `room_equipment` | Tabla intermedia `sala_equipamiento`; sin entidad propia. |
+| `PlanMembresia` | `membership_plans` | Define cupo de horas, descuento y tope de reservas. |
+| `Miembro` | `members` | FK `plan_id`; datos personales y estado. |
+| `CuentaUsuario` | `user_accounts` | FK única `member_id`; credenciales y rol. |
+| `Reserva` | `bookings` | FK `room_id` y `member_id`; costos y estado. |
+| `ServicioAdicional` | `additional_services` | Catálogo de servicios cobrados por cantidad. |
+| `DetalleReserva` | `booking_items` | FK `booking_id` y `service_id`; cantidad y precio aplicado. |
+
+### 3.4 Decisiones de mapeo JPA
 
 | Relación | Lado dueño | `fetch` | `cascade` / `orphanRemoval` | Justificación |
 |---|---|---|---|---|
-| `Location` 1→N `Room` | `Room` (`@ManyToOne`) | `LAZY` | ninguno | La sala conoce su sede; borrar una sede no debe arrastrar salas (RN-12 lo impide antes). |
-| `Room` N↔N `Equipment` | `Room` (`@ManyToMany` + `@JoinTable`) | `LAZY` | ninguno | El equipamiento es un catálogo compartido; borrar una sala no borra equipamiento. |
-| `MembershipPlan` 1→N `Member` | `Member` (`@ManyToOne`) | `LAZY` | ninguno | El plan no contiene a sus miembros; RN-12 impide borrar un plan en uso. |
-| `Member` 1↔1 `UserAccount` | `UserAccount` (`@OneToOne` + FK `member_id` única) | `LAZY` | ninguno | La cuenta pertenece al miembro; se crean juntas en el alta pero se gestionan por separado. |
-| `Member` 1→N `Booking` | `Booking` (`@ManyToOne`) | `LAZY` | ninguno | La reserva referencia a su miembro; RN-12 impide borrar un miembro con reservas. |
-| `Room` 1→N `Booking` | `Booking` (`@ManyToOne`) | `LAZY` | ninguno | Misma lógica que la anterior. |
-| `Booking` 1→N `BookingItem` | `Booking` (`@OneToMany(mappedBy="booking")`) | `LAZY` | `cascade = ALL`, `orphanRemoval = true` | El detalle no existe sin la reserva: se guarda y se borra con ella. Quitar un servicio elimina su fila. |
-| `BookingItem` N→1 `AdditionalService` | `BookingItem` (`@ManyToOne`) | `LAZY` | ninguno | El detalle apunta al servicio; `appliedUnitPrice` conserva el precio histórico. |
+| `Sede` 1→N `Sala` | `Sala` (`@ManyToOne`, atributo `sede`) | `LAZY` | ninguno | La sala conoce su sede; borrar una sede no debe arrastrar salas (RN-12 lo impide antes). |
+| `Sala` N↔N `Equipamiento` | `Sala` (`@ManyToMany` + `@JoinTable(name = "room_equipment")`) | `LAZY` | ninguno | El equipamiento es un catálogo compartido; borrar una sala no borra equipamiento. |
+| `PlanMembresia` 1→N `Miembro` | `Miembro` (`@ManyToOne`, atributo `plan`) | `LAZY` | ninguno | El plan no contiene a sus miembros; RN-12 impide borrar un plan en uso. |
+| `Miembro` 1↔1 `CuentaUsuario` | `CuentaUsuario` (`@OneToOne` + FK `miembro_id` única) | `LAZY` | ninguno | La cuenta pertenece al miembro y se crean juntas en el alta, pero se gestionan por separado. Solo la cuenta navega al miembro; `Miembro` no conoce su cuenta. |
+| `Miembro` 1→N `Reserva` | `Reserva` (`@ManyToOne`, atributo `miembro`) | `LAZY` | ninguno | La reserva referencia a su miembro; RN-12 impide borrar un miembro con reservas. |
+| `Sala` 1→N `Reserva` | `Reserva` (`@ManyToOne`, atributo `sala`) | `LAZY` | ninguno | Misma lógica que la anterior. |
+| `Reserva` 1→N `DetalleReserva` | `Reserva` (`@OneToMany(mappedBy = "reserva")`) | `LAZY` | `cascade = ALL`, `orphanRemoval = true` | El detalle no existe sin la reserva: se guarda y se borra con ella. Quitar un servicio elimina su fila. |
+| `DetalleReserva` N→1 `ServicioAdicional` | `DetalleReserva` (`@ManyToOne`, atributo `servicio`) | `LAZY` | ninguno | El detalle apunta al servicio; `precioUnitarioAplicado` conserva el precio histórico. |
 
 Comprobaciones adicionales:
 
-- `@Enumerated(EnumType.STRING)` en `RoomType`, `MemberStatus`, `BookingStatus` y `Role`.
+- `@Enumerated(EnumType.STRING)` en `TipoSala`, `EstadoMiembro`, `EstadoReserva` y `Rol`.
+  Los **valores** siguen en inglés (`MEETING_ROOM`, `ACTIVE`, `PENDING`, `ADMIN`, etc.).
 - `BigDecimal` para dinero, `LocalTime` para horarios de sede y `LocalDateTime` para reservas.
-- `nullable = false` en los campos obligatorios y `unique` en documento, email, username y `(location_id, name)` de sala.
+- Nombres de columna en inglés con `@Column(name = "…")`: `tarifaHora` → `hourly_rate`,
+  `numeroDocumento` → `document_number`, `costoTotal` → `total_cost`, etc.
+- `nullable = false` en los campos obligatorios y `unique` en número de documento, email,
+  nombre de usuario y `(sede, nombre)` de sala.
 - Colecciones `LAZY` y DTO de salida: el JSON nunca serializa entidades, así que no hay ciclos ni `LazyInitializationException`.
-- Los listados usan `@EntityGraph` / `join fetch` para evitar N+1.
+- `Miembro` y los listados de `Reserva` usan `@EntityGraph` para evitar N+1; los demás
+  listados se resolverán con proyecciones o DTO en la fase 3.
 
 ---
 
@@ -195,8 +239,11 @@ Comprobaciones adicionales:
 | 13 | Dos solicitudes simultáneas, misma sala y horario | Una `201`, otra `409` | RN-01 (concurrencia) |
 | 14 | `GET /api/miembros?estado=SUSPENDED` | `200` solo suspendidos | RF-02 |
 
-Cada escenario tendrá una prueba automatizada y una solicitud en la colección de
-Postman/Insomnia.
+Los 14 escenarios tienen una prueba automatizada en
+`src/test/java/com/coworkhub/aceptacion/EscenariosAceptacionTest.java`. La colección de
+Postman en `docs/postman` sirve para probar manualmente las rutas principales; la prueba
+de concurrencia se ejecuta en la suite automatizada porque necesita dos solicitudes a la
+vez.
 
 ---
 
@@ -211,15 +258,15 @@ Postman/Insomnia.
    consumidas** (la sala estuvo bloqueada hasta la cancelación). Con menos de 2 h no hay
    cancelación.
 4. **Qué reservas consumen horas.** Las `PENDING`, `CONFIRMED` y `COMPLETED` del mes de
-   `startTime`; las `CANCELLED` no consumen salvo el caso del punto 3.
+   `inicio`; las `CANCELLED` no consumen salvo el caso del punto 3.
 5. **Orden de consumo.** Las horas incluidas se consumen en orden cronológico de las
    reservas del mes; el excedente se calcula con la tarifa de la sala de cada reserva.
 6. **Horas de una reserva.** Se cobran por duración exacta (múltiplos de 30 min); las
    horas incluidas se descuentan en horas decimales (45 min = 0,75 h).
-7. **`totalCost` al cancelar.** Si hay cargo, `totalCost` pasa a ser el `cancellationFee`;
-   `roomCost` y `servicesCost` se conservan como histórico. Sin cargo, `totalCost = 0`.
-8. **`maxActiveBookings`.** Cuenta reservas `PENDING` o `CONFIRMED` con `startTime` futuro.
-9. **Servicios.** El precio se congela en `appliedUnitPrice` al agregarlos. Cambiar el
+7. **`costoTotal` al cancelar.** Si hay cargo, `costoTotal` pasa a ser el `cargoCancelacion`;
+   `costoSala` y `costoServicios` se conservan como histórico. Sin cargo, `costoTotal = 0`.
+8. **`maxReservasActivas`.** Cuenta reservas `PENDING` o `CONFIRMED` con `inicio` futuro.
+9. **Servicios.** El precio se congela en `precioUnitarioAplicado` al agregarlos. Cambiar el
    precio del catálogo no altera reservas existentes. Solo se agregan/quitan en `PENDING`;
    agregar el mismo servicio dos veces suma cantidades.
 10. **Estado inicial.** Toda reserva nace `PENDING`. Solo `ADMIN`/`RECEPTIONIST` confirman
@@ -233,6 +280,10 @@ Postman/Insomnia.
 14. **Frontend.** Aplicación de una sola página con JavaScript vanilla (sin build), servida
     como estático por Spring Boot, que consume la API con `fetch` y guarda el JWT solo en
     memoria/`sessionStorage`.
+15. **Nomenclatura.** Clases, atributos, métodos y variables en español; tablas y columnas
+    en inglés mediante `@Table`/`@Column` (sección 3.1). Es una desviación deliberada del
+    enunciado §2, que pedía atributos en inglés, para cumplir la rúbrica §4. El renombrado
+    del código de la fase 2 se aplica como corrección 2.1 antes de iniciar la fase 3.
 
 ---
 

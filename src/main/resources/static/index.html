@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CoWorkHub</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<!-- Pantalla de inicio de sesion -->
+<section id="pantalla-login" class="pantalla-login">
+    <div class="tarjeta-login">
+        <div class="marca">
+            <span class="logo">CH</span>
+            <div>
+                <h1>CoWorkHub</h1>
+                <p>Reservas de salas y membresias</p>
+            </div>
+        </div>
+
+        <form id="formulario-login">
+            <label>
+                Usuario
+                <input name="nombreUsuario" autocomplete="username" required placeholder="admin">
+            </label>
+            <label>
+                Contrasena
+                <input name="contrasena" type="password" autocomplete="current-password" required placeholder="coworkhub123">
+            </label>
+            <button type="submit" class="boton primario ancho">Iniciar sesion</button>
+        </form>
+
+        <div class="ayuda-login">
+            <p>Usuarios de prueba (contrasena <strong>coworkhub123</strong>):</p>
+            <p><code>admin</code> administrador &middot; <code>recepcion</code> recepcion &middot; <code>ana</code> miembro</p>
+        </div>
+    </div>
+</section>
+
+<!-- Aplicacion -->
+<div id="aplicacion" class="aplicacion" hidden>
+    <header class="cabecera">
+        <div class="marca compacta">
+            <span class="logo">CH</span>
+            <strong>CoWorkHub</strong>
+        </div>
+        <div class="usuario">
+            <span id="etiqueta-usuario"></span>
+            <span id="etiqueta-rol" class="insignia"></span>
+            <button id="boton-salir" class="boton plano">Salir</button>
+        </div>
+    </header>
+
+    <div class="cuerpo">
+        <nav id="menu" class="menu">
+            <button data-vista="reservas" class="activo">Reservas</button>
+            <button data-vista="disponibilidad">Disponibilidad</button>
+            <span class="grupo-menu">Catalogos</span>
+            <button data-vista="sedes">Sedes</button>
+            <button data-vista="salas">Salas</button>
+            <button data-vista="equipamientos">Equipamientos</button>
+            <button data-vista="servicios">Servicios</button>
+            <button data-vista="planes">Planes</button>
+            <span class="grupo-menu" data-solo-personal>Gestion</span>
+            <button data-vista="miembros" data-solo-personal>Miembros</button>
+            <button id="boton-mi-consumo" data-solo-miembro>Mi consumo</button>
+        </nav>
+
+        <main class="contenido">
+            <!-- Reservas -->
+            <section id="vista-reservas" class="vista">
+                <div class="titulo-vista">
+                    <h2>Reservas</h2>
+                    <p>Consulta la disponibilidad, crea reservas y gestiona su ciclo de vida.</p>
+                </div>
+
+                <article class="tarjeta">
+                    <div class="tarjeta-titulo">
+                        <h3>Nueva reserva</h3>
+                        <button class="boton plano" id="boton-limpiar-reserva">Limpiar</button>
+                    </div>
+                    <form id="formulario-reserva" class="grilla-formulario">
+                        <label id="campo-miembro-reserva" data-solo-personal>
+                            Miembro
+                            <select name="miembroId" id="select-miembro-reserva"></select>
+                        </label>
+                        <label>
+                            Sala
+                            <select name="salaId" id="select-sala-reserva"></select>
+                        </label>
+                        <label>
+                            Inicio
+                            <input type="datetime-local" name="inicio" required>
+                        </label>
+                        <label>
+                            Fin
+                            <input type="datetime-local" name="fin" required>
+                        </label>
+                        <label>
+                            Asistentes
+                            <input type="number" name="asistentes" min="1" value="1" required>
+                        </label>
+                        <div class="campo-ancho">
+                            <span class="etiqueta">Servicios adicionales</span>
+                            <div class="fila">
+                                <select id="select-servicio-reserva"></select>
+                                <input type="number" id="cantidad-servicio-reserva" min="1" value="1" class="corto">
+                                <button type="button" class="boton secundario" id="boton-agregar-servicio">Agregar</button>
+                            </div>
+                            <ul id="lista-servicios-reserva" class="lista-servicios"></ul>
+                        </div>
+                        <div class="campo-ancho acciones-formulario">
+                            <button type="submit" class="boton primario">Crear reserva</button>
+                            <span class="nota">La reserva se crea en estado PENDIENTE.</span>
+                        </div>
+                    </form>
+                </article>
+
+                <article class="tarjeta">
+                    <div class="tarjeta-titulo">
+                        <h3>Buscar reservas</h3>
+                    </div>
+                    <form id="formulario-busqueda-reservas" class="grilla-formulario" data-solo-personal>
+                        <label>
+                            Filtrar por
+                            <select name="modo" id="modo-busqueda-reservas">
+                                <option value="miembro">Miembro</option>
+                                <option value="estado">Estado</option>
+                                <option value="sala">Sala y fecha</option>
+                            </select>
+                        </label>
+                        <label id="bloque-busqueda-miembro">
+                            Miembro
+                            <select name="miembroId" id="select-miembro-busqueda"></select>
+                        </label>
+                        <label id="bloque-busqueda-estado" hidden>
+                            Estado
+                            <select name="estado" id="select-estado-busqueda">
+                                <option value="PENDING">Pendiente</option>
+                                <option value="CONFIRMED">Confirmada</option>
+                                <option value="COMPLETED">Completada</option>
+                                <option value="CANCELLED">Cancelada</option>
+                            </select>
+                        </label>
+                        <label id="bloque-busqueda-sala" hidden>
+                            Sala
+                            <select name="salaId" id="select-sala-busqueda"></select>
+                        </label>
+                        <label id="bloque-busqueda-fecha" hidden>
+                            Fecha
+                            <input type="date" name="fecha" id="fecha-busqueda">
+                        </label>
+                        <div class="campo-ancho">
+                            <button type="submit" class="boton primario">Buscar</button>
+                        </div>
+                    </form>
+                    <div id="tabla-reservas" class="tabla-contenedor"></div>
+                </article>
+            </section>
+
+            <!-- Disponibilidad -->
+            <section id="vista-disponibilidad" class="vista" hidden>
+                <div class="titulo-vista">
+                    <h2>Disponibilidad</h2>
+                    <p>Salas libres de una sede para una fecha y un rango horario.</p>
+                </div>
+                <article class="tarjeta">
+                    <form id="formulario-disponibilidad" class="grilla-formulario">
+                        <label>
+                            Sede
+                            <select name="sedeId" id="select-sede-disponibilidad" required></select>
+                        </label>
+                        <label>
+                            Fecha
+                            <input type="date" name="fecha" id="fecha-disponibilidad" required>
+                        </label>
+                        <label>
+                            Hora inicio
+                            <input type="time" name="horaInicio" value="09:00" required>
+                        </label>
+                        <label>
+                            Hora fin
+                            <input type="time" name="horaFin" value="11:00" required>
+                        </label>
+                        <label>
+                            Capacidad minima
+                            <input type="number" name="capacidadMinima" min="1" value="1" required>
+                        </label>
+                        <div class="campo-ancho">
+                            <span class="etiqueta">Equipamiento requerido (opcional)</span>
+                            <div id="equipamientos-disponibilidad" class="chips"></div>
+                        </div>
+                        <div class="campo-ancho">
+                            <button type="submit" class="boton primario">Consultar disponibilidad</button>
+                        </div>
+                    </form>
+                </article>
+                <article class="tarjeta">
+                    <div class="tarjeta-titulo"><h3>Resultados</h3></div>
+                    <div id="resultado-disponibilidad" class="tabla-contenedor">
+                        <p class="vacio">Elige una sede, fecha y horario para consultar.</p>
+                    </div>
+                </article>
+            </section>
+
+            <!-- Sedes -->
+            <section id="vista-sedes" class="vista" hidden>
+                <div class="titulo-vista con-accion">
+                    <div>
+                        <h2>Sedes</h2>
+                        <p>Ubicaciones de la red y su horario de atencion.</p>
+                    </div>
+                    <button class="boton primario" id="boton-nueva-sede" data-solo-admin>Nueva sede</button>
+                </div>
+                <article class="tarjeta">
+                    <div id="tabla-sedes" class="tabla-contenedor"></div>
+                </article>
+            </section>
+
+            <!-- Salas -->
+            <section id="vista-salas" class="vista" hidden>
+                <div class="titulo-vista con-accion">
+                    <div>
+                        <h2>Salas</h2>
+                        <p>Salas, oficinas y escritorios con su tarifa y equipamiento.</p>
+                    </div>
+                    <button class="boton primario" id="boton-nueva-sala" data-solo-admin>Nueva sala</button>
+                </div>
+                <article class="tarjeta">
+                    <div class="fila filtros">
+                        <label>
+                            Filtrar por sede
+                            <select id="filtro-sede-salas">
+                                <option value="">Todas las sedes</option>
+                            </select>
+                        </label>
+                    </div>
+                    <div id="tabla-salas" class="tabla-contenedor"></div>
+                </article>
+            </section>
+
+            <!-- Equipamientos -->
+            <section id="vista-equipamientos" class="vista" hidden>
+                <div class="titulo-vista con-accion">
+                    <div>
+                        <h2>Equipamientos</h2>
+                        <p>Recursos que se pueden asignar a una sala.</p>
+                    </div>
+                    <button class="boton primario" id="boton-nuevo-equipamiento" data-solo-admin>Nuevo equipamiento</button>
+                </div>
+                <article class="tarjeta">
+                    <div id="tabla-equipamientos" class="tabla-contenedor"></div>
+                </article>
+            </section>
+
+            <!-- Servicios adicionales -->
+            <section id="vista-servicios" class="vista" hidden>
+                <div class="titulo-vista con-accion">
+                    <div>
+                        <h2>Servicios adicionales</h2>
+                        <p>Servicios que se cobran por cantidad dentro de una reserva.</p>
+                    </div>
+                    <button class="boton primario" id="boton-nuevo-servicio" data-solo-admin>Nuevo servicio</button>
+                </div>
+                <article class="tarjeta">
+                    <div id="tabla-servicios" class="tabla-contenedor"></div>
+                </article>
+            </section>
+
+            <!-- Planes -->
+            <section id="vista-planes" class="vista" hidden>
+                <div class="titulo-vista con-accion">
+                    <div>
+                        <h2>Planes de membresia</h2>
+                        <p>Horas incluidas, descuento sobre excedentes y limite de reservas activas.</p>
+                    </div>
+                    <button class="boton primario" id="boton-nuevo-plan" data-solo-admin>Nuevo plan</button>
+                </div>
+                <article class="tarjeta">
+                    <div id="tabla-planes" class="tabla-contenedor"></div>
+                </article>
+            </section>
+
+            <!-- Miembros -->
+            <section id="vista-miembros" class="vista" hidden>
+                <div class="titulo-vista con-accion">
+                    <div>
+                        <h2>Miembros</h2>
+                        <p>Registro, estado y consumo mensual de los miembros.</p>
+                    </div>
+                    <button class="boton primario" id="boton-nuevo-miembro">Nuevo miembro</button>
+                </div>
+                <article class="tarjeta">
+                    <form id="formulario-filtro-miembros" class="fila filtros">
+                        <label>
+                            Nombre
+                            <input name="nombre" placeholder="Buscar por nombre">
+                        </label>
+                        <label>
+                            Estado
+                            <select name="estado">
+                                <option value="">Todos</option>
+                                <option value="ACTIVE">Activo</option>
+                                <option value="SUSPENDED">Suspendido</option>
+                            </select>
+                        </label>
+                        <button type="submit" class="boton secundario">Filtrar</button>
+                    </form>
+                    <div id="tabla-miembros" class="tabla-contenedor"></div>
+                    <div class="paginacion">
+                        <button class="boton plano" id="boton-pagina-anterior">Anterior</button>
+                        <span id="etiqueta-paginacion"></span>
+                        <button class="boton plano" id="boton-pagina-siguiente">Siguiente</button>
+                    </div>
+                </article>
+            </section>
+        </main>
+    </div>
+</div>
+
+<!-- Dialogo generico -->
+<dialog id="dialogo" class="dialogo">
+    <h3 id="dialogo-titulo"></h3>
+    <div class="dialogo-cuerpo"></div>
+</dialog>
+
+<div id="avisos" class="avisos"></div>
+
+<script src="app.js"></script>
+</body>
+</html>
